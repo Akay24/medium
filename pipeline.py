@@ -2,13 +2,15 @@
 """
 Medium Publication Pipeline Manager
 ====================================
-Manage single-folder topic publications, verify non-breaking SVG assets,
-preview in browser, and effortlessly create, check, or delete article topics.
+Manage single-folder topic publications, verify non-breaking WebP assets,
+preview in browser, create GitHub Gists for Medium import, and easily create,
+check, or delete article topics.
 
 Usage:
     python3 pipeline.py list
     python3 pipeline.py check <topic-slug>
     python3 pipeline.py preview <topic-slug>
+    python3 pipeline.py gist <topic-slug>
     python3 pipeline.py new "<Topic Name>"
     python3 pipeline.py delete <topic-slug>
 """
@@ -42,23 +44,23 @@ def list_topics():
         print("No topics found in articles/.")
         return
 
-    print("\n" + "=" * 75)
-    print(f"{'TOPIC SLUG':<30} | {'PUBLISH.MD':<11} | {'SVGS':<6} | {'COVER':<6} | {'STATUS'}")
-    print("=" * 75)
+    print("\n" + "=" * 80)
+    print(f"{'TOPIC SLUG':<30} | {'PUBLISH.MD':<11} | {'WEBP':<6} | {'COVER':<6} | {'STATUS'}")
+    print("=" * 80)
 
     for t in sorted(topics):
         has_publish = (t / "PUBLISH.md").exists()
-        svgs = list((t / "assets").glob("*.svg")) if (t / "assets").exists() else []
-        has_cover = (t / "cover.jpg").exists() or (t / "cover.png").exists()
+        webps = list((t / "assets").glob("*.webp")) if (t / "assets").exists() else []
+        has_cover = (t / "cover.webp").exists() or (t / "cover.jpg").exists()
 
-        status = "READY" if (has_publish and has_cover and len(svgs) > 0) else "INCOMPLETE"
+        status = "READY" if (has_publish and has_cover and len(webps) > 0) else "INCOMPLETE"
         status_color = "\033[92m" if status == "READY" else "\033[93m"
         reset_color = "\033[0m"
 
         print(
-            f"{t.name:<30} | {'Yes' if has_publish else 'No':<11} | {len(svgs):<6} | {'Yes' if has_cover else 'No':<6} | {status_color}{status}{reset_color}"
+            f"{t.name:<30} | {'Yes' if has_publish else 'No':<11} | {len(webps):<6} | {'Yes' if has_cover else 'No':<6} | {status_color}{status}{reset_color}"
         )
-    print("=" * 75 + "\n")
+    print("=" * 80 + "\n")
 
 
 def check_topic(slug: str):
@@ -68,13 +70,14 @@ def check_topic(slug: str):
         sys.exit(1)
 
     print(f"\nVerifying Topic Publication Package: '{slug}'")
-    print("-" * 55)
+    print("-" * 60)
 
     checklist = [
         ("Single Publish File (PUBLISH.md)", (target / "PUBLISH.md").exists()),
+        ("Gist Import File (GIST.md)", (target / "GIST.md").exists()),
         ("Browser Preview (preview.html)", (target / "preview.html").exists()),
-        ("Cover Art (cover.jpg/png)", (target / "cover.jpg").exists() or (target / "cover.png").exists()),
-        ("Standalone SVGs (assets/*.svg)", len(list((target / "assets").glob("*.svg"))) >= 1),
+        ("Cover Art (cover.webp)", (target / "cover.webp").exists()),
+        ("Standalone WebP Diagrams (assets/*.webp)", len(list((target / "assets").glob("*.webp"))) >= 1),
         ("Runnable Code (code/)", (target / "code").exists() and len(list((target / "code").glob("*"))) >= 1),
         ("Quality Checklist (qa-checklist-completed.md)", (target / "qa-checklist-completed.md").exists()),
     ]
@@ -86,8 +89,8 @@ def check_topic(slug: str):
             all_passed = False
         print(f"  [{mark}] {name}")
 
-    svg_count = len(list((target / "assets").glob("*.svg"))) if (target / "assets").exists() else 0
-    print(f"\n  Non-Breaking SVG Asset Count: {svg_count}")
+    webp_count = len(list((target / "assets").glob("*.webp"))) if (target / "assets").exists() else 0
+    print(f"\n  WebP Asset Count: {webp_count}")
 
     if all_passed:
         print("\n\033[92m★ TOPIC IS FULLY PUBLISH-READY FOR MEDIUM!\033[0m\n")
@@ -103,6 +106,53 @@ def preview_topic(slug: str):
 
     print(f"Opening browser preview for '{slug}'...")
     subprocess.run(["open", str(preview_file)])
+
+
+def publish_gist(slug: str):
+    target = ARTICLES_DIR / slug
+    gist_file = target / "GIST.md"
+    if not gist_file.exists():
+        print(f"Error: Gist file '{gist_file}' not found.")
+        sys.exit(1)
+
+    # 1. Sync repository to ensure raw CDN URLs are accessible
+    print("Syncing repository assets with GitHub origin...")
+    subprocess.run(["git", "add", "."], cwd=BASE_DIR, check=False)
+    subprocess.run(
+        ["git", "commit", "-m", f"chore: sync {slug} assets for gist import"],
+        cwd=BASE_DIR,
+        check=False,
+    )
+    subprocess.run(["git", "push", "origin", "main"], cwd=BASE_DIR, check=False)
+
+    # 2. Create public Gist using gh CLI
+    print(f"\nCreating public GitHub Gist for '{slug}'...")
+    proc = subprocess.run(
+        ["gh", "gist", "create", str(gist_file), "--public", "-d", f"Medium Article Draft: {slug}"],
+        capture_output=True,
+        text=True,
+    )
+    out = proc.stdout + proc.stderr
+    match = re.search(r"https://gist\.github\.com/[^\s]+", out)
+    if not match:
+        print(f"Error creating Gist:\n{out}")
+        sys.exit(1)
+
+    gist_url = match.group(0)
+    print(f"\n\033[92m✔ Public GitHub Gist Created Successfully!\033[0m")
+    print(f"  \033[1mGist URL:\033[0m {gist_url}")
+
+    # Copy to system clipboard on macOS
+    try:
+        subprocess.run(["pbcopy"], input=gist_url.encode("utf-8"), check=False)
+        print("  \033[96m(Copied Gist URL to clipboard!)\033[0m")
+    except Exception:
+        pass
+
+    # 3. Open Medium Importer
+    print("\nNext step: Paste the Gist URL into Medium's Story Importer:")
+    print("  \033[4mhttps://medium.com/p/import\033[0m\n")
+    subprocess.run(["open", "https://medium.com/p/import"], check=False)
 
 
 def delete_topic(slug: str):
@@ -132,9 +182,9 @@ Series: System Design
 Audience: Intermediate developers
 Format: Technical deep dive
 Technical depth: Detailed
-Visuals: Custom cover image brief + colorful inline SVG diagrams
+Visuals: Custom cover image brief + colorful WebP diagrams
 Purpose: Learn and prepare for software engineering interviews
-Additional instructions: Generate single PUBLISH.md output with colorful non-breaking SVGs.
+Additional instructions: Generate single PUBLISH.md and GIST.md output with WebP diagrams.
 
 Execute the full article production workflow from the master instructions.
 """
@@ -158,6 +208,9 @@ def main():
     p_preview = subparsers.add_parser("preview", help="Open visual preview in default browser")
     p_preview.add_argument("topic", help="Topic folder slug")
 
+    p_gist = subparsers.add_parser("gist", help="Create public GitHub Gist for 1-click Medium story import")
+    p_gist.add_argument("topic", help="Topic folder slug")
+
     p_new = subparsers.add_parser("new", help="Scaffold a new article topic")
     p_new.add_argument("name", help="Human-readable topic name (e.g., 'Kafka Partitioning Internals')")
 
@@ -172,6 +225,8 @@ def main():
         check_topic(args.topic)
     elif args.command == "preview":
         preview_topic(args.topic)
+    elif args.command == "gist":
+        publish_gist(args.topic)
     elif args.command == "new":
         new_topic(args.name)
     elif args.command == "delete":

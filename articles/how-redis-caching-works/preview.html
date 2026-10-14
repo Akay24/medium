@@ -199,7 +199,7 @@
       </table>
     </div>
 
-    <img src="cover.jpg" alt="Redis Architecture Cover" class="hero-img">
+    <img src="cover.webp" alt="Redis Architecture Cover" class="hero-img">
 
     <p>Every backend engineer eventually confronts the same wall: your relational database, once fast and responsive in development, begins to buckle under high-concurrency read traffic. Queries that took 2 milliseconds now wait behind connection pools, disk I/O spikes toward 100%, and API response times degrade.</p>
 
@@ -226,28 +226,28 @@
     <p>In Cache-Aside, the application coordinates between Redis and the database.</p>
 
     <div class="svg-container">
-      <img src="assets/diagram-1-cache-aside.svg" alt="Cache-Aside Request Flow">
+      <img src="assets/diagram-1-cache-aside.webp" alt="Cache-Aside Request Flow">
     </div>
 
     <h2>3. Memory Eviction Engine: Why Redis Avoids True LRU</h2>
     <p>Redis implements 8 eviction policies. Rather than maintaining expensive doubly-linked list pointers across millions of keys, Redis uses low-overhead random sampling.</p>
 
     <div class="svg-container">
-      <img src="assets/diagram-3-eviction-sampling.svg" alt="Redis Eviction Engine">
+      <img src="assets/diagram-3-eviction-sampling.webp" alt="Redis Eviction Engine">
     </div>
 
     <h2>4. Production Pathology: Cache Stampede Mitigation</h2>
     <p>When a hot key expires, hundreds of concurrent requests flood the database. A distributed mutex lock (<code>SET NX PX</code>) ensures only 1 worker queries the database while the rest wait.</p>
 
     <div class="svg-container">
-      <img src="assets/diagram-2-stampede-mutex.svg" alt="Stampede Mutex Protection">
+      <img src="assets/diagram-2-stampede-mutex.webp" alt="Stampede Mutex Protection">
     </div>
 
     <h2>5. The Dual-Write Dilemma: Why DEL Beats SET</h2>
     <p>Concurrently updating cache values with <code>SET</code> causes out-of-order writes that permanently corrupt cache data. In Cache-Aside, always <code>DEL</code> on write.</p>
 
     <div class="svg-container">
-      <img src="assets/diagram-4-invalidation-race.svg" alt="Invalidation Race Condition">
+      <img src="assets/diagram-4-invalidation-race.webp" alt="Invalidation Race Condition">
     </div>
 
     <h2>6. Verified Execution Benchmarks</h2>
