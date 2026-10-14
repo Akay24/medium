@@ -1,0 +1,90 @@
+# article-pipeline configuration. Schema-validated at load time (src/config/schema.ts).
+defaults:
+  # Model identifiers are configurable per stage; no model names hardcoded in stage logic.
+  # Replace with a model available to your account before running LLM stages.
+  model: claude-sonnet-4-20250514
+
+models:
+  research: claude-sonnet-4-20250514
+  outline: claude-sonnet-4-20250514
+  draft: claude-sonnet-4-20250514
+  visuals: claude-sonnet-4-20250514
+  metadata: claude-sonnet-4-20250514
+  qa: claude-sonnet-4-20250514
+  sourceSupport: claude-sonnet-4-20250514
+
+providers:
+  llm: anthropic
+  research: manual        # manual mode: request supplies URLs; no search is faked
+  image: brief-only       # default: cover brief only, no image generation
+  sandbox: docker         # docker | fake (fake is for tests only, never a silent fallback)
+
+retries:
+  llmInvalidOutput: 2     # retries include validation errors; failure is explicit
+
+approvals:
+  auto: false             # CLI --auto overrides per invocation; gates never skip validation
+
+research:
+  maxSources: 12
+  maxRedirects: 5
+  fetchTimeoutMs: 20000
+  maxResponseBytes: 2000000
+  allowedDomains: []      # empty = any public domain; list hosts to restrict (e.g. ["redis.io"])
+  allowPrivateAddresses: false  # NEVER enable unless you know why; blocks SSRF
+
+sandbox:
+  image: node:22-bookworm-slim
+  memoryMb: 512
+  cpus: 1
+  pidsLimit: 128
+  timeoutMs: 30000
+  maxOutputBytes: 1000000
+  networkEnabled: false   # no network by default; enable per-run only when required
+  repetitions: 3          # run N times when deterministic enough to benefit
+  readonlyRootfs: true
+  dropAllCapabilities: true
+
+diagrams:
+  rendererCommand: mmdc   # @mermaid-js/mermaid-cli binary
+  timeoutMs: 60000
+  format: svg
+
+imageProvider:
+  mode: brief-only        # not_requested | brief_created | generated | failed statuses
+
+mediumLimits:
+  # Platform limits with verification metadata. Values below are UNVERIFIED placeholders:
+  # verify against https://help.medium.com and update lastVerifiedAt/sourceUrl, or leave unverified.
+  maxTags:
+    value: 5
+    lastVerifiedAt: null
+    sourceUrl: null
+    unverified: true
+  maxTitleLength:
+    value: 100
+    lastVerifiedAt: null
+    sourceUrl: null
+    unverified: true
+  maxSubtitleLength:
+    value: 140
+    lastVerifiedAt: null
+    sourceUrl: null
+    unverified: true
+  unverifiedNotice: "Medium platform limits are unverified; confirm at help.medium.com before publishing."
+
+phraseWarnings:
+  enabled: true
+  phrases:
+    - "in conclusion"
+    - "delve into"
+    - "it's important to note"
+    - "in today's fast-paced"
+    - "game-changer"
+
+exportPolicy:
+  blockOnFailedVerification: true
+
+# Cost estimation ONLY for models listed here; omit entries to skip cost logging.
+pricing:
+  perModel: {}
