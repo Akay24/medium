@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="stampede-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+    <linearGradient id="lock-winner-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="lock-loser-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="card-shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="540" rx="16" fill="url(#bg-grad-2)" stroke="#1f2937" stroke-width="2" />
+
+  <!-- Header Banner -->
+  <rect x="30" y="24" width="900" height="48" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1" />
+  <circle cx="54" cy="48" r="6" fill="#ef4444" />
+  <circle cx="72" cy="48" r="6" fill="#f59e0b" />
+  <circle cx="90" cy="48" r="6" fill="#10b981" />
+  <text x="114" y="53" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" letter-spacing="1">CACHE STAMPEDE MITIGATION: DISTRIBUTED MUTEX LOCKING</text>
+  <rect x="730" y="34" width="184" height="28" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1" />
+  <text x="746" y="52" fill="#34d399" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">ZERO DB OVERLOAD</text>
+
+  <!-- Concurrent Traffic Trigger -->
+  <rect x="40" y="95" width="220" height="130" rx="12" fill="#1e293b" stroke="#ef4444" stroke-width="2" filter="url(#card-shadow)" />
+  <rect x="55" y="107" width="190" height="24" rx="4" fill="url(#stampede-grad)" />
+  <text x="150" y="123" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700">HOT KEY EXPIRES</text>
+  <text x="150" y="152" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="700">500 Concurrent Clients</text>
+  <text x="150" y="172" text-anchor="middle" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="11">Request: GET /catalog/deals</text>
+  <rect x="65" y="185" width="170" height="24" rx="6" fill="#374151" />
+  <text x="150" y="201" text-anchor="middle" fill="#fda4af" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700">Redis returns nil (Miss)</text>
+
+  <!-- Arrow to Mutex Gate -->
+  <path d="M 260 160 L 320 160" stroke="#f43f5e" stroke-width="3" stroke-dasharray="6 4" />
+  <polygon points="320,155 330,160 320,165" fill="#f43f5e" />
+
+  <!-- Mutex Locking Gate -->
+  <rect x="330" y="95" width="240" height="130" rx="12" fill="#1e293b" stroke="#6366f1" stroke-width="2" filter="url(#card-shadow)" />
+  <rect x="345" y="107" width="210" height="24" rx="4" fill="#4f46e5" />
+  <text x="450" y="123" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700">DISTRIBUTED MUTEX</text>
+  <text x="450" y="152" text-anchor="middle" fill="#a5b4fc" font-family="monospace" font-size="11" font-weight="700">SET lock:key token NX PX</text>
+  <text x="450" y="174" text-anchor="middle" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="11">Atomic NX = Only 1 succeeds</text>
+  <rect x="355" y="188" width="190" height="22" rx="6" fill="#312e81" />
+  <text x="450" y="203" text-anchor="middle" fill="#818cf8" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600">5-Second Auto-Expire Guard</text>
+
+  <!-- Winner Path (Top Right) -->
+  <path d="M 570 140 L 630 140 L 630 130 L 650 130" stroke="#10b981" stroke-width="3" />
+  <polygon points="650,125 660,130 650,135" fill="#10b981" />
+
+  <rect x="660" y="85" width="260" height="150" rx="12" fill="#064e3b" fill-opacity="0.3" stroke="#10b981" stroke-width="2" filter="url(#card-shadow)" />
+  <rect x="675" y="97" width="230" height="24" rx="4" fill="url(#lock-winner-grad)" />
+  <text x="790" y="113" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700">WINNER: WORKER #1 (Acquired Lock)</text>
+  <text x="790" y="140" text-anchor="middle" fill="#6ee7b7" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">1. Queries Database (50ms)</text>
+  <text x="790" y="162" text-anchor="middle" fill="#a7f3d0" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">2. Writes Cache: SET key EX 60</text>
+  <text x="790" y="184" text-anchor="middle" fill="#6ee7b7" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">3. Releases Lock via Lua script</text>
+  <rect x="675" y="196" width="230" height="24" rx="6" fill="#047857" />
+  <text x="790" y="212" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700">EXACTLY 1 QUERY SENT TO DB</text>
+
+  <!-- Loser Path (Bottom) -->
+  <path d="M 450 225 L 450 310" stroke="#f59e0b" stroke-width="3" />
+  <polygon points="445,310 450,320 455,310" fill="#f59e0b" />
+
+  <rect x="250" y="320" width="400" height="180" rx="12" fill="#451a03" fill-opacity="0.3" stroke="#f59e0b" stroke-width="2" filter="url(#card-shadow)" />
+  <rect x="265" y="332" width="370" height="24" rx="4" fill="url(#lock-loser-grad)" />
+  <text x="450" y="348" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700">WAITING POOL: 499 WORKERS (Lock Busy)</text>
+  <text x="450" y="378" text-anchor="middle" fill="#fde68a" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600">1. Sleep 50ms (Database execution window)</text>
+  <text x="450" y="404" text-anchor="middle" fill="#fde68a" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600">2. Retry Redis GET cache:key</text>
+  <text x="450" y="430" text-anchor="middle" fill="#34d399" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700">3. Cache HIT! (Populated by Worker #1)</text>
+  <rect x="275" y="450" width="350" height="30" rx="8" fill="#1e293b" stroke="#10b981" stroke-width="1.5" />
+  <text x="450" y="470" text-anchor="middle" fill="#34d399" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="800">499 CLIENTS SERVED FROM RAM WITH 0 DB CALLS</text>
+
+  <!-- Side-by-Side Impact Card -->
+  <rect x="680" y="320" width="240" height="180" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" />
+  <text x="800" y="348" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700">PRODUCTION IMPACT</text>
+  <line x1="700" y1="360" x2="900" y2="360" stroke="#334155" stroke-width="1" />
+  <text x="700" y="385" fill="#f87171" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">Without Mutex:</text>
+  <text x="700" y="405" fill="#fca5a5" font-family="system-ui, -apple-system, sans-serif" font-size="10">500 DB queries spike CPU</text>
+  <text x="700" y="420" fill="#fca5a5" font-family="system-ui, -apple-system, sans-serif" font-size="10">Connection pool exhausted</text>
+  <line x1="700" y1="435" x2="900" y2="435" stroke="#334155" stroke-width="1" />
+  <text x="700" y="458" fill="#34d399" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600">With Mutex Lock:</text>
+  <text x="700" y="478" fill="#6ee7b7" font-family="system-ui, -apple-system, sans-serif" font-size="10">1 query sent to database</text>
+  <text x="700" y="492" fill="#6ee7b7" font-family="system-ui, -apple-system, sans-serif" font-size="10">Sub-second recovery</text>
+</svg>

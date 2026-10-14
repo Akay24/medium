@@ -1,0 +1,17 @@
+graph LR
+    subgraph MemoryPressure["Memory Limit Exceeded: used_memory > maxmemory"]
+        direction TB
+        IncomingWrite["Incoming Write Command"] --> CheckLimit{"Exceeds maxmemory?"}
+    end
+
+    subgraph EvictionPipeline["Sample-Based Eviction Pool"]
+        CheckLimit -->|"Yes"| Sample["Sample N Random Keys<br/>(maxmemory-samples = 5)"]
+        Sample --> Rank["Rank by Idle Time (LRU)<br/>or Access Frequency (LFU)"]
+        Rank --> EvictBest["Evict Best Candidate Key<br/>Reclaim RAM"]
+        EvictBest --> StillOver{"Still over limit?"}
+        StillOver -->|"Yes"| Sample
+        StillOver -->|"No"| Execute["Execute Write Command"]
+    end
+
+    style EvictBest fill:#ffe0b2,stroke:#f57c00,stroke-width:2px
+    style Execute fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
