@@ -98,14 +98,37 @@ def check_topic(slug: str):
         print("\n\033[93m⚠ Topic has missing assets. Prompt Antigravity to complete.\033[0m\n")
 
 
-def preview_topic(slug: str):
-    preview_file = ARTICLES_DIR / slug / "preview.html"
+import base64
+
+
+def generate_standalone(slug: str) -> Path:
+    target = ARTICLES_DIR / slug
+    preview_file = target / "preview.html"
+    standalone_file = target / "standalone.html"
     if not preview_file.exists():
         print(f"Error: Preview file '{preview_file}' not found.")
         sys.exit(1)
 
+    html = preview_file.read_text()
+    all_webps = list(target.glob("*.webp")) + (list((target / "assets").glob("*.webp")) if (target / "assets").exists() else [])
+
+    for img_path in all_webps:
+        rel_path = img_path.relative_to(target)
+        b64_str = base64.b64encode(img_path.read_bytes()).decode("utf-8")
+        data_uri = f"data:image/webp;base64,{b64_str}"
+        html = html.replace(f'src="{rel_path}"', f'src="{data_uri}"')
+        html = html.replace(f'src="./{rel_path}"', f'src="{data_uri}"')
+        html = html.replace(f'src="{img_path.name}"', f'src="{data_uri}"')
+
+    standalone_file.write_text(html)
+    return standalone_file
+
+
+def preview_topic(slug: str):
+    standalone_file = generate_standalone(slug)
+    print(f"\033[92m✔ Generated self-contained standalone.html (all WebP images baked in via Base64)\033[0m")
     print(f"Opening browser preview for '{slug}'...")
-    subprocess.run(["open", str(preview_file)])
+    subprocess.run(["open", str(standalone_file)])
 
 
 def publish_gist(slug: str):
