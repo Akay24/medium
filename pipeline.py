@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
 """
-Antigravity Topic Pipeline Manager
-==================================
-Tidy, single-folder topic publications.
-All you provide is the TOPIC NAME. Antigravity does all research, writing,
-cover art generation, WebP diagram rendering, and code verification.
+Antigravity Standalone Article Pipeline Manager
+================================================
+Manages standalone publish-ready article outputs in articles/output/.
+Each topic produces two 100% self-contained outputs:
+  - articles/output/<topic>article.md   (Standalone Markdown with embedded Base64 WebP images)
+  - articles/output/<topic>article.html (Standalone HTML with embedded Base64 WebP images & styles)
+
+No external assets/ folder or relative paths required.
+All article artifacts are strictly local and ignored by Git.
 
 Usage:
     python3 pipeline.py list
     python3 pipeline.py check <topic-slug>
-    python3 pipeline.py gist <topic-slug>
+    python3 pipeline.py open <topic-slug>
     python3 pipeline.py delete <topic-slug>
 """
 
 import argparse
+import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 ARTICLES_DIR = BASE_DIR / "articles"
+OUTPUT_DIR = ARTICLES_DIR / "output"
 
 
 def slugify(text: str) -> str:
@@ -30,51 +35,73 @@ def slugify(text: str) -> str:
     return re.sub(r"[-\s]+", "-", slug)
 
 
+def get_topic_files(slug: str):
+    slug_clean = slug.removesuffix("article").removesuffix("-article")
+    candidates_md = [
+        OUTPUT_DIR / f"{slug_clean}article.md",
+        OUTPUT_DIR / f"{slug_clean}-article.md",
+        OUTPUT_DIR / f"{slug}.md",
+    ]
+    candidates_html = [
+        OUTPUT_DIR / f"{slug_clean}article.html",
+        OUTPUT_DIR / f"{slug_clean}-article.html",
+        OUTPUT_DIR / f"{slug}.html",
+    ]
+
+    md_file = next((f for f in candidates_md if f.exists()), candidates_md[0])
+    html_file = next((f for f in candidates_html if f.exists()), candidates_html[0])
+    return md_file, html_file
+
+
 def list_topics():
-    if not ARTICLES_DIR.exists():
-        print("No articles directory found.")
+    if not OUTPUT_DIR.exists():
+        print("No output directory found at articles/output/.")
         return
 
-    topics = [d for d in ARTICLES_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")]
-    if not topics:
-        print("No topics found in articles/.")
+    md_files = sorted(OUTPUT_DIR.glob("*article.md"))
+    if not md_files:
+        print("No standalone articles found in articles/output/.")
         return
 
-    print("\n" + "=" * 75)
-    print(f"{'TOPIC SLUG':<32} | {'ARTICLE.MD':<11} | {'WEBP':<6} | {'STATUS'}")
-    print("=" * 75)
+    print("\n" + "=" * 80)
+    print(f"{'STANDALONE TOPIC':<36} | {'MD (KB)':<10} | {'HTML (KB)':<10} | {'STATUS'}")
+    print("=" * 80)
 
-    for t in sorted(topics):
-        has_article = (t / "article.md").exists() or (t / "PUBLISH.md").exists()
-        webps = list((t / "assets").glob("*.webp")) if (t / "assets").exists() else []
-        has_cover = (t / "cover.webp").exists()
+    seen = set()
+    for md_file in md_files:
+        topic_name = md_file.stem
+        norm_name = topic_name.replace("-article", "").replace("article", "")
+        if norm_name in seen:
+            continue
+        seen.add(norm_name)
 
-        status = "READY" if (has_article and has_cover and len(webps) > 0) else "INCOMPLETE"
+        html_candidates = [
+            OUTPUT_DIR / f"{topic_name}.html",
+            OUTPUT_DIR / f"{norm_name}article.html",
+            OUTPUT_DIR / f"{norm_name}-article.html",
+        ]
+        html_file = next((f for f in html_candidates if f.exists()), None)
+
+        md_kb = round(md_file.stat().st_size / 1024, 1)
+        html_kb = round(html_file.stat().st_size / 1024, 1) if html_file else 0
+
+        status = "READY" if (md_file.exists() and html_file and html_file.exists()) else "INCOMPLETE"
         status_color = "\033[92m" if status == "READY" else "\033[93m"
         reset_color = "\033[0m"
 
-        print(
-            f"{t.name:<32} | {'Yes' if has_article else 'No':<11} | {len(webps):<6} | {status_color}{status}{reset_color}"
-        )
-    print("=" * 75 + "\n")
+        print(f"{norm_name:<36} | {md_kb:<10} | {html_kb:<10} | {status_color}{status}{reset_color}")
+    print("=" * 80 + "\n")
 
 
 def check_topic(slug: str):
-    target = ARTICLES_DIR / slug
-    if not target.exists():
-        print(f"Error: Topic folder '{slug}' not found under {ARTICLES_DIR}.")
-        sys.exit(1)
+    md_file, html_file = get_topic_files(slug)
 
-    print(f"\nVerifying Topic Package: '{slug}'")
-    print("-" * 55)
+    print(f"\nVerifying Standalone Topic Outputs: '{slug}'")
+    print("-" * 65)
 
-    has_article = (target / "article.md").exists() or (target / "PUBLISH.md").exists()
     checklist = [
-        ("Article File (article.md)", has_article),
-        ("Cover Image (cover.webp)", (target / "cover.webp").exists()),
-        ("WebP Diagrams (assets/*.webp)", len(list((target / "assets").glob("*.webp"))) >= 1),
-        ("Executable Code (code/)", (target / "code").exists() and len(list((target / "code").glob("*"))) >= 1),
-        ("Quality Assurance Report (qa.md)", (target / "qa.md").exists()),
+        (f"Standalone Markdown ({md_file.name})", md_file.exists()),
+        (f"Standalone HTML ({html_file.name})", html_file.exists()),
     ]
 
     all_passed = True
@@ -84,76 +111,83 @@ def check_topic(slug: str):
             all_passed = False
         print(f"  [{mark}] {name}")
 
-    webp_count = len(list((target / "assets").glob("*.webp"))) if (target / "assets").exists() else 0
-    print(f"\n  WebP Asset Count: {webp_count}")
+    if md_file.exists():
+        with open(md_file, "r") as f:
+            md_text = f.read()
+        images = re.findall(r"!\[.*?\]\((.*?)\)", md_text)
+        has_relative = any(not (src.startswith("data:image/") or src.startswith("http")) for src in images)
+        if has_relative:
+            print("  [\033[91m✖ FAIL\033[0m] Relative image paths detected in MD (not standalone!)")
+            all_passed = False
+        else:
+            print(f"  [\033[92m✔ PASS\033[0m] Embedded WebP Images: {len(images)} (100% Standalone Base64)")
+
+    if html_file.exists():
+        with open(html_file, "r") as f:
+            html_text = f.read()
+        html_images = re.findall(r'<img [^>]*src=["\']([^"\']+)["\']', html_text)
+        has_relative_html = any(not (src.startswith("data:image/") or src.startswith("http")) for src in html_images)
+        if has_relative_html:
+            print("  [\033[91m✖ FAIL\033[0m] Relative image paths detected in HTML (not standalone!)")
+            all_passed = False
+        else:
+            print(f"  [\033[92m✔ PASS\033[0m] HTML Inlined WebP Images: {len(html_images)} (100% Standalone)")
 
     if all_passed:
-        print("\n\033[92m★ TOPIC IS TIDY & READY FOR MEDIUM PUBLICATION!\033[0m\n")
+        print("\n\033[92m★ TOPIC IS COMPLETELY STANDALONE & PUBLISH-READY!\033[0m\n")
     else:
-        print("\n\033[93m⚠ Topic has missing assets. Prompt Antigravity to complete.\033[0m\n")
+        print("\n\033[93m⚠ Topic outputs have missing or non-standalone elements.\033[0m\n")
 
 
-def publish_gist(slug: str):
-    target = ARTICLES_DIR / slug
-    publish_file = target / "article.md" if (target / "article.md").exists() else target / "PUBLISH.md"
-    if not publish_file.exists():
-        print(f"Error: Article file '{publish_file}' not found.")
+def open_topic(slug: str):
+    _, html_file = get_topic_files(slug)
+    if not html_file.exists():
+        print(f"Error: HTML file '{html_file}' does not exist.")
         sys.exit(1)
 
-    # 2. Create public Gist using gh CLI
-    print(f"\nCreating public GitHub Gist for '{slug}'...")
-    proc = subprocess.run(
-        ["gh", "gist", "create", str(publish_file), "--public", "-d", f"Medium Article Draft: {slug}"],
-        capture_output=True,
-        text=True,
-    )
-    out = proc.stdout + proc.stderr
-    match = re.search(r"https://gist\.github\.com/[^\s]+", out)
-    if not match:
-        print(f"Error creating Gist:\n{out}")
-        sys.exit(1)
-
-    gist_url = match.group(0)
-    print(f"\n\033[92m✔ Public GitHub Gist Created!\033[0m")
-    print(f"  \033[1mGist URL:\033[0m {gist_url}")
-
-    # Copy to system clipboard on macOS
-    try:
-        subprocess.run(["pbcopy"], input=gist_url.encode("utf-8"), check=False)
-        print("  \033[96m(Copied Gist URL to clipboard!)\033[0m")
-    except Exception:
-        pass
-
-    # 3. Open Medium Importer
-    print("\nNext step: Paste the Gist URL into Medium's Story Importer:")
-    print("  \033[4mhttps://medium.com/p/import\033[0m\n")
-    subprocess.run(["open", "https://medium.com/p/import"], check=False)
+    print(f"Opening standalone HTML in default browser: {html_file}")
+    subprocess.run(["open", str(html_file)], check=False)
 
 
 def delete_topic(slug: str):
-    target = ARTICLES_DIR / slug
-    if not target.exists():
-        print(f"Error: Topic folder '{slug}' does not exist.")
-        sys.exit(1)
+    md_file, html_file = get_topic_files(slug)
+    deleted = 0
+    for f in [md_file, html_file]:
+        if f.exists():
+            f.unlink()
+            deleted += 1
+            print(f"\033[92m✔ Deleted:\033[0m {f.relative_to(BASE_DIR)}")
 
-    shutil.rmtree(target)
-    print(f"\033[92m✔ Successfully deleted topic folder:\033[0m articles/{slug}")
+    # Also clean hyphenated aliases if present
+    slug_clean = slug.removesuffix("article").removesuffix("-article")
+    for alias in [
+        OUTPUT_DIR / f"{slug_clean}-article.md",
+        OUTPUT_DIR / f"{slug_clean}-article.html",
+        OUTPUT_DIR / f"{slug_clean}article.md",
+        OUTPUT_DIR / f"{slug_clean}article.html",
+    ]:
+        if alias.exists():
+            alias.unlink()
+            print(f"\033[92m✔ Deleted alias:\033[0m {alias.relative_to(BASE_DIR)}")
+
+    if deleted == 0:
+        print(f"No files found for topic '{slug}' in {OUTPUT_DIR}.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Antigravity Topic Pipeline Manager")
+    parser = argparse.ArgumentParser(description="Antigravity Standalone Topic Pipeline Manager")
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("list", help="List all article topics and their readiness")
+    subparsers.add_parser("list", help="List all standalone topic outputs in articles/output/")
 
-    p_check = subparsers.add_parser("check", help="Verify a topic's publish-ready assets")
-    p_check.add_argument("topic", help="Topic folder slug (e.g., how-redis-caching-works)")
+    p_check = subparsers.add_parser("check", help="Verify standalone readiness of a topic")
+    p_check.add_argument("topic", help="Topic slug (e.g. how-redis-caching-works)")
 
-    p_gist = subparsers.add_parser("gist", help="Publish Gist and launch Medium story import")
-    p_gist.add_argument("topic", help="Topic folder slug")
+    p_open = subparsers.add_parser("open", help="Open standalone HTML output in browser")
+    p_open.add_argument("topic", help="Topic slug")
 
-    p_del = subparsers.add_parser("delete", help="Delete a topic folder")
-    p_del.add_argument("topic", help="Topic folder slug to delete")
+    p_del = subparsers.add_parser("delete", help="Delete a topic's output files")
+    p_del.add_argument("topic", help="Topic slug to delete")
 
     args = parser.parse_args()
 
@@ -161,8 +195,8 @@ def main():
         list_topics()
     elif args.command == "check":
         check_topic(args.topic)
-    elif args.command == "gist":
-        publish_gist(args.topic)
+    elif args.command == "open":
+        open_topic(args.topic)
     elif args.command == "delete":
         delete_topic(args.topic)
     else:
