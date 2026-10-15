@@ -41,20 +41,20 @@ def list_topics():
         return
 
     print("\n" + "=" * 75)
-    print(f"{'TOPIC SLUG':<32} | {'PUBLISH.MD':<11} | {'WEBP':<6} | {'STATUS'}")
+    print(f"{'TOPIC SLUG':<32} | {'ARTICLE.MD':<11} | {'WEBP':<6} | {'STATUS'}")
     print("=" * 75)
 
     for t in sorted(topics):
-        has_publish = (t / "PUBLISH.md").exists()
+        has_article = (t / "article.md").exists() or (t / "PUBLISH.md").exists()
         webps = list((t / "assets").glob("*.webp")) if (t / "assets").exists() else []
         has_cover = (t / "cover.webp").exists()
 
-        status = "READY" if (has_publish and has_cover and len(webps) > 0) else "INCOMPLETE"
+        status = "READY" if (has_article and has_cover and len(webps) > 0) else "INCOMPLETE"
         status_color = "\033[92m" if status == "READY" else "\033[93m"
         reset_color = "\033[0m"
 
         print(
-            f"{t.name:<32} | {'Yes' if has_publish else 'No':<11} | {len(webps):<6} | {status_color}{status}{reset_color}"
+            f"{t.name:<32} | {'Yes' if has_article else 'No':<11} | {len(webps):<6} | {status_color}{status}{reset_color}"
         )
     print("=" * 75 + "\n")
 
@@ -68,8 +68,9 @@ def check_topic(slug: str):
     print(f"\nVerifying Topic Package: '{slug}'")
     print("-" * 55)
 
+    has_article = (target / "article.md").exists() or (target / "PUBLISH.md").exists()
     checklist = [
-        ("Single Publish File (PUBLISH.md)", (target / "PUBLISH.md").exists()),
+        ("Article File (article.md)", has_article),
         ("Cover Image (cover.webp)", (target / "cover.webp").exists()),
         ("WebP Diagrams (assets/*.webp)", len(list((target / "assets").glob("*.webp"))) >= 1),
         ("Executable Code (code/)", (target / "code").exists() and len(list((target / "code").glob("*"))) >= 1),
@@ -94,20 +95,10 @@ def check_topic(slug: str):
 
 def publish_gist(slug: str):
     target = ARTICLES_DIR / slug
-    publish_file = target / "PUBLISH.md"
+    publish_file = target / "article.md" if (target / "article.md").exists() else target / "PUBLISH.md"
     if not publish_file.exists():
-        print(f"Error: Publish file '{publish_file}' not found.")
+        print(f"Error: Article file '{publish_file}' not found.")
         sys.exit(1)
-
-    # 1. Sync repository to ensure raw CDN URLs are accessible
-    print("Syncing assets with GitHub repository...")
-    subprocess.run(["git", "add", "."], cwd=BASE_DIR, check=False)
-    subprocess.run(
-        ["git", "commit", "-m", f"chore: sync {slug} assets for publication"],
-        cwd=BASE_DIR,
-        check=False,
-    )
-    subprocess.run(["git", "push", "origin", "main"], cwd=BASE_DIR, check=False)
 
     # 2. Create public Gist using gh CLI
     print(f"\nCreating public GitHub Gist for '{slug}'...")
