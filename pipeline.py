@@ -489,6 +489,95 @@ def export_medium(slug: str, target_format: str = "png", out_dir: str = None):
 export_images = export_medium
 
 
+def export_reddit(slug: str):
+    """
+    Exports a topic as a high-engagement, self-contained Reddit technical post:
+    - Provides target subreddits (r/systemdesign, r/backend, r/programming) and flairs.
+    - 3 title variants (Direct technical, Problem-focused, Architecture-focused).
+    - TL;DR summary at the top.
+    - Strips base64 blobs and unsupported HTML tags (<details>, <summary>).
+    - Preserves tables (Reddit natively supports pipe tables!).
+    - Preserves fenced code blocks and technical tradeoffs.
+    - Adds 3 open-ended community discussion questions at the end to drive engagement.
+    - Saves output to articles/output/<topic>-reddit.md.
+    """
+    md_file, _ = get_topic_files(slug)
+    if not md_file.exists():
+        print(f"Error: Markdown file '{md_file}' does not exist.")
+        sys.exit(1)
+
+    slug_clean = slug.removesuffix("article").removesuffix("-article")
+    md_text = md_file.read_text(encoding="utf-8")
+
+    # 1. Strip base64 image tags and replace with clean Reddit image note
+    text = re.sub(r'!\[(.*?)\]\(data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+\)', r'*(Diagram: \1)*', md_text)
+    # 2. Strip <details> and <summary> and raw Mermaid
+    text = re.sub(r"<details>[\s\S]*?</details>", "", text)
+    text = re.sub(r"```mermaid[\s\S]*?```", "", text)
+    text = re.sub(r"</?(?:details|summary|div|span|center)[^>]*>", "", text)
+
+    # 3. Clean up leading title and subtitle
+    lines = text.split("\n")
+    cleaned_body_lines = []
+    skip_header = True
+    for line in lines:
+        if line.startswith("## 1."):
+            skip_header = False
+        if not skip_header:
+            cleaned_body_lines.append(line)
+
+    body_text = "\n".join(cleaned_body_lines).strip()
+    body_text = re.sub(r"\n{3,}", "\n\n", body_text)
+
+    raw_title = slug_clean.replace("-", " ").title()
+    subject = raw_title[4:] if raw_title.lower().startswith("how ") else raw_title
+    clean_topic = subject.removesuffix(" Works")
+
+    reddit_content = f"""# Reddit Post Metadata & Configuration
+
+**Recommended Subreddits & Flairs:**
+- **r/systemdesign** — Flair: `Architecture` / `Deep Dive`
+- **r/backend** — Flair: `Discussion` / `Best Practices`
+- **r/programming** — Flair: `Design`
+- **r/ExperiencedDevs** — Flair: `Architecture`
+
+**Title Options (Pick One):**
+1. *[Deep Dive]* How {clean_topic} Actually Works Under High Concurrency: Stampede Mutexes, Eviction, and Invalidation Race Conditions
+2. *[Architecture]* Why your database melts when a hot cache expires (and how to fix the stampede with distributed mutexes)
+3. *[First Principles]* Under the hood of {clean_topic}: Single-threaded event loops, O(1) in-memory lookups, and dual-write consistency
+
+---
+
+### TL;DR
+- **The Physical Reality**: Main memory (RAM) responds in ~50–100ns vs ~5–50ms for relational DB queries—two orders of magnitude faster.
+- **The #1 Production Killer**: When a hot key expires, hundreds of concurrent threads execute DB queries at once (**Cache Stampede**). Protect it with an atomic distributed lock (`SET key token NX EX 5`).
+- **Data Consistency**: Under concurrent writes, always **Invalidate (`DEL`)** the cache rather than updating it (`SET`) to prevent race condition data corruption.
+
+---
+
+{body_text}
+
+---
+
+## 💬 Discussion Questions for the Community
+
+1. **Cache Invalidation in Production**: When managing dual-writes, do you rely on application-level invalidation (`DEL` after DB commit), or do you stream CDC events (e.g. Debezium / Kafka) into Redis?
+2. **Stampede Mitigation**: Have you ever dealt with a thundering herd outage in production? Did you use distributed mutexes (`SET NX EX`), probabilistic early expiration (XFetch), or background refresh workers?
+3. **Memory Sizing**: What `maxmemory-policy` has caused the least surprise for your team under unexpected memory pressure (`allkeys-lru` vs `volatile-lfu`)?
+
+---
+
+> *Original write-up with full high-DPI architecture diagrams, sequence flows, and reproducible benchmark scripts: [Your Publication Link / GitHub]*
+"""
+
+    out_path = OUTPUT_DIR / f"{slug_clean}-reddit.md"
+    out_path.write_text(reddit_content.strip() + "\n", encoding="utf-8")
+
+    print(f"\n✔ Reddit Technical Post generated: {out_path.relative_to(BASE_DIR)}")
+    print(f"  Target Subreddits: r/systemdesign, r/backend, r/programming")
+    print(f"  Tip: Copy to clipboard with: pbcopy < articles/output/{out_path.name}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Antigravity Standalone Topic Pipeline Manager")
     subparsers = parser.add_subparsers(dest="command")
@@ -514,6 +603,9 @@ def main():
     p_exp_img.add_argument("--format", default="png", choices=["png", "webp", "jpeg", "jpg"], help="Target image format (default: png)")
     p_exp_img.add_argument("--dir", default=None, help="Custom export directory path")
 
+    p_red = subparsers.add_parser("reddit", help="Export topic as a self-contained, high-engagement Reddit technical post")
+    p_red.add_argument("topic", help="Topic slug (e.g. how-redis-caching-works)")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -526,11 +618,14 @@ def main():
         delete_topic(args.topic)
     elif args.command in ["export", "export-images"]:
         export_medium(args.topic, target_format=args.format, out_dir=args.dir)
+    elif args.command == "reddit":
+        export_reddit(args.topic)
     else:
         parser.print_help()
 
 
 if __name__ == "__main__":
     main()
+
 
 
