@@ -17,7 +17,7 @@
 
 ---
 
-![Cover Image](cover.webp)
+![Cover Image](https://raw.githubusercontent.com/Akay24/medium/main/articles/how-redis-caching-works/cover.webp)
 
 Every backend engineer eventually confronts the same wall: your relational database, once fast and responsive in development, begins to buckle under high-concurrency read traffic. Queries that took 2 milliseconds now wait behind connection pools, disk I/O spikes toward 100%, and API response times degrade.
 
@@ -56,7 +56,7 @@ There are several theoretical caching topologies, but the overwhelming industry 
 
 In Cache-Aside, the cache engine does not talk directly to the database. The application server acts as the orchestrator, sitting between the cache and the primary persistent store.
 
-![Cache-Aside Request Path Lifecycle](assets/diagram-1-cache-aside.webp)
+![Cache-Aside Request Path Lifecycle](https://raw.githubusercontent.com/Akay24/medium/main/articles/how-redis-caching-works/assets/diagram-1-cache-aside.webp)
 
 <details>
 <summary>▶ Click to view raw Mermaid sequence definition</summary>
@@ -166,7 +166,7 @@ What happens when Redis runs out of allocated RAM?
 
 You configure Redis memory limits using the `maxmemory` directive (e.g., `maxmemory 4gb`). When the memory footprint exceeds this boundary, Redis triggers its **Eviction Policy** defined by `maxmemory-policy`.
 
-![Redis Memory Eviction Engine](assets/diagram-3-eviction-sampling.webp)
+![Redis Memory Eviction Engine](https://raw.githubusercontent.com/Akay24/medium/main/articles/how-redis-caching-works/assets/diagram-3-eviction-sampling.webp)
 
 ### The 8 Eviction Policies
 
@@ -208,7 +208,7 @@ A high-traffic key (e.g., the homepage catalog or trending news) expires. At tha
 - All 500 hit the primary relational database with the exact same expensive query simultaneously.
 - The database connection pool is exhausted, CPU hits 100%, and the database crashes.
 
-![Cache Stampede Mutex Protection](assets/diagram-2-stampede-mutex.webp)
+![Cache Stampede Mutex Protection](https://raw.githubusercontent.com/Akay24/medium/main/articles/how-redis-caching-works/assets/diagram-2-stampede-mutex.webp)
 
 <details>
 <summary>▶ Click to view raw Mermaid flowchart</summary>
@@ -276,7 +276,7 @@ An attacker (or buggy crawler) sends millions of requests querying non-existent 
 
 When data changes in the database, should you **update** the cache or **delete** it?
 
-![The Dual-Write Dilemma: DEL vs SET](assets/diagram-4-invalidation-race.webp)
+![The Dual-Write Dilemma: DEL vs SET](https://raw.githubusercontent.com/Akay24/medium/main/articles/how-redis-caching-works/assets/diagram-4-invalidation-race.webp)
 
 ### The Flaw of Cache Updating (`SET`)
 Consider two concurrent requests updating the same user profile:
