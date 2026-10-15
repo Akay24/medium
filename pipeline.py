@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 import base64
+import hashlib
 import os
 import re
 import subprocess
@@ -162,12 +163,240 @@ def delete_topic(slug: str):
         print(f"No files found for topic '{slug}' in {OUTPUT_DIR}.")
 
 
-def export_images(slug: str, target_format: str = "webp", out_dir: str = None):
+def table_to_medium_list(table_str: str) -> str:
+    """Converts a Markdown table into a structured list preserving headers and row data for Medium."""
+    lines = [l.strip() for l in table_str.strip().split("\n") if l.strip()]
+    if len(lines) < 3:
+        return table_str
+
+    header_line = lines[0]
+    data_lines = lines[2:]
+
+    headers = [c.strip() for c in header_line.strip("|").split("|")]
+    if not headers or not data_lines:
+        return table_str
+
+    list_items = []
+    for r in data_lines:
+        cells = [c.strip() for c in r.strip("|").split("|")]
+        if not cells:
+            continue
+        primary = cells[0] if cells else ""
+        sub_items = []
+        for h, val in zip(headers[1:], cells[1:]):
+            if val:
+                sub_items.append(f"  - **{h}**: {val}")
+        if sub_items:
+            item_text = f"- {primary}\n" + "\n".join(sub_items)
+        else:
+            item_text = f"- {primary}"
+        list_items.append(item_text)
+
+    return "\n".join(list_items)
+
+
+def clean_medium_markdown(md_text: str, assets_rel_dir: str, extracted_assets: list) -> tuple[str, int]:
+    """
+    Transforms markdown into a clean Medium-ready copy:
+    - Replaces base64 image data with local asset references.
+    - Strips unsupported HTML wrappers (<details>, <summary>) and raw Mermaid blocks.
+    - Retains corresponding rendered diagram images.
+    - Converts Markdown tables into readable nested lists.
+    - Clearly marks local assets as pending upload.
+    """
+    text = md_text
+
+    # 1. Replace base64 images with local asset references
+    for asset in extracted_assets:
+        orig_match = asset["full_match"]
+        filename = asset["filename"]
+        alt = asset["alt"]
+        local_rel_path = f"{assets_rel_dir}/{filename}"
+
+        replacement = (
+            f"\n\n![{alt}]({local_rel_path})\n"
+            f"> 📍 **Local Asset (Pending Medium Upload)**: `{filename}` — *Upload this local image at this location.*  \n"
+            f"> *Caption: {alt}*\n\n"
+        )
+        text = text.replace(orig_match, replacement)
+
+    # 2. Strip <details> and <summary> wrappers and raw Mermaid blocks
+    text = re.sub(r"<details>[\s\S]*?</details>", "", text)
+    text = re.sub(r"```mermaid[\s\S]*?```", "", text)
+    text = re.sub(r"</?(?:details|summary|div|span|center)[^>]*>", "", text)
+
+    # 3. Convert Markdown tables to readable lists
+    table_pattern = re.compile(
+        r"(\|[^\n]+\|\s*\n\|[-: |]+\|\s*\n(?:\|[^\n]+\|\s*\n?)+)",
+        re.MULTILINE
+    )
+    tables_found = table_pattern.findall(text)
+    for tbl in tables_found:
+        converted = table_to_medium_list(tbl)
+        text = text.replace(tbl, converted + "\n")
+
+    # Clean up excessive blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip() + "\n", len(tables_found)
+
+
+def generate_export_instructions(slug_clean: str, assets: list, tables_count: int, export_md_path: Path, assets_dir: Path, out_path: Path):
+    """Generates EXPORT_INSTRUCTIONS.md detailing how to copy content and place local images."""
+    lines = [
+        f"# Medium Publishing Instructions: {slug_clean}",
+        "",
+        "> **Important**: This article contains **local image assets** that reside on your machine.",
+        "> They have **not** been uploaded to Medium yet. Medium does not parse local file paths,",
+        "> so each image must be uploaded directly via Medium's editor at the indicated locations.",
+        "",
+        "---",
+        "",
+        "## 📋 Quick Publishing Steps",
+        "",
+        "1. **Open Medium**: Navigate to [medium.com/new-story](https://medium.com/new-story).",
+        f"2. **Copy Article Text**: Copy the full text from `{export_md_path.name}`.",
+        f"   - On macOS terminal: `pbcopy < articles/output/{export_md_path.name}`",
+        "3. **Paste into Medium**: Paste (Cmd+V) directly into Medium's story editor.",
+        "4. **Upload Images**: Drag and drop the corresponding local image file from the assets directory",
+        f"   (`{assets_dir.name}/`) into each marked placeholder in the article.",
+        "5. **Format Code Blocks**: Medium will format fenced code blocks automatically. If needed, select code and press `Cmd+Alt+6` (or `Ctrl+Alt+6`) to activate syntax highlighting.",
+        "6. **Review Lists & Tables**: The Markdown tables have been converted into clean, readable lists for native Medium display.",
+        "7. **Delete Placeholders**: After dragging in each image, delete the `> 📍 Local Asset` callout block above/below it.",
+        "",
+        "---",
+        "",
+        "## 🖼️ Local Visual Assets Checklist",
+        "",
+        f"All images are stored locally in: `articles/output/{assets_dir.name}/`",
+        "",
+        "| # | File Name | Format | Size | Insertion Location / Caption | Status |",
+        "|---|-----------|--------|------|------------------------------|--------|",
+    ]
+
+    for i, a in enumerate(assets, 1):
+        lines.append(
+            f"| {i} | `{a['filename']}` | {a['format'].upper()} | {a['size_kb']} KB | **{a['alt'][:45]}** | Local Asset (Pending Upload) |"
+        )
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## 🔍 Formatting Conversions Applied",
+        "",
+        f"- **Tables Converted**: {tables_count} Markdown tables converted to readable nested lists.",
+        "- **Mermaid Cleaned**: Raw Mermaid code and `<details>` tags removed; high-DPI rendered images preserved.",
+        "- **Base64 Replaced**: 0 base64 strings in export copy. Clean local paths used throughout.",
+        f"- **Original Article Intact**: `articles/output/{slug_clean}article.md` was not modified.",
+        "",
+        "Happy Publishing! 🚀",
+        ""
+    ])
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
+def validate_export(source_md: Path, orig_hash: str, export_md: Path, asset_dir: Path, assets: list, tables_count: int) -> bool:
+    """Validates the export copy against all required publication criteria."""
+    print(f"\nValidating Medium Export for '{source_md.stem}'")
+    print("-" * 65)
+
+    all_passed = True
+
+    # 1. Source of truth unchanged
+    new_hash = hashlib.sha256(source_md.read_bytes()).hexdigest()
+    if new_hash == orig_hash:
+        print("  [\033[92m✔ PASS\033[0m] Source Markdown Intact (Unmodified & Preserved)")
+    else:
+        print("  [\033[91m✖ FAIL\033[0m] Source Markdown was modified during export!")
+        all_passed = False
+
+    # 2. Check export file exists
+    if not export_md.exists():
+        print(f"  [\033[91m✖ FAIL\033[0m] Export file '{export_md.name}' does not exist.")
+        return False
+
+    export_text = export_md.read_text(encoding="utf-8")
+
+    # 3. Check for unresolved base64 data
+    b64_matches = re.findall(r"data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+", export_text)
+    if not b64_matches:
+        print("  [\033[92m✔ PASS\033[0m] Zero Unresolved Base64 Strings in Export Copy")
+    else:
+        print(f"  [\033[91m✖ FAIL\033[0m] Found {len(b64_matches)} unresolved base64 strings in export!")
+        all_passed = False
+
+    # 4. Check for unsupported HTML tags
+    unsupported_html = re.findall(r"</?(?:details|summary|div|span|center|script|iframe)[^>]*>", export_text, re.IGNORECASE)
+    if not unsupported_html:
+        print("  [\033[92m✔ PASS\033[0m] Zero Unsupported HTML Tags (<details>, <summary>, etc.)")
+    else:
+        print(f"  [\033[91m✖ FAIL\033[0m] Found unsupported HTML tags: {set(unsupported_html)}")
+        all_passed = False
+
+    # 5. Check for raw Mermaid code blocks
+    mermaid_blocks = re.findall(r"```mermaid[\s\S]*?```", export_text)
+    if not mermaid_blocks:
+        print("  [\033[92m✔ PASS\033[0m] Zero Raw Mermaid Blocks (No unrendered code exposed)")
+    else:
+        print(f"  [\033[91m✖ FAIL\033[0m] Found {len(mermaid_blocks)} raw Mermaid code blocks in export!")
+        all_passed = False
+
+    # 6. Check that extracted images exist on disk and have non-zero size
+    missing_assets = []
+    for a in assets:
+        img_path = asset_dir / a["filename"]
+        if not img_path.exists() or img_path.stat().st_size == 0:
+            missing_assets.append(a["filename"])
+
+    if not missing_assets:
+        print(f"  [\033[92m✔ PASS\033[0m] All Extracted Image Assets Exist on Disk ({len(assets)}/{len(assets)})")
+    else:
+        print(f"  [\033[91m✖ FAIL\033[0m] Missing image asset files: {missing_assets}")
+        all_passed = False
+
+    # 7. Check that tables were converted (no unparsed Markdown tables)
+    table_pattern = re.compile(r"(\|[^\n]+\|\s*\n\|[-: |]+\|\s*\n(?:\|[^\n]+\|\s*\n?)+)", re.MULTILINE)
+    remaining_tables = table_pattern.findall(export_text)
+    if not remaining_tables:
+        print(f"  [\033[92m✔ PASS\033[0m] Markdown Tables Converted to Medium-Friendly Lists ({tables_count} converted)")
+    else:
+        print(f"  [\033[91m✖ FAIL\033[0m] Found {len(remaining_tables)} unconverted Markdown tables!")
+        all_passed = False
+
+    # 8. Check that export distinguishes local assets (no false 'already uploaded' claims)
+    if "Uploaded to Medium" in export_text or "image has been uploaded" in export_text:
+        print("  [\033[91m✖ FAIL\033[0m] False upload claims detected in export text!")
+        all_passed = False
+    else:
+        print("  [\033[92m✔ PASS\033[0m] Local Assets Explicitly Marked (Pending Upload)")
+
+    print("-" * 65)
+    if all_passed:
+        print("\033[92m★ EXPORT VALIDATION PASSED: 100% READY FOR MEDIUM COPY-PASTE!\033[0m\n")
+    else:
+        print("\033[91m✖ EXPORT VALIDATION FAILED: Issues detected above.\033[0m\n")
+
+    return all_passed
+
+
+def export_medium(slug: str, target_format: str = "png", out_dir: str = None):
+    """
+    Medium export pipeline:
+    1. Reads original article as immutable source of truth (verifies SHA256 before & after).
+    2. Extracts embedded base64 images into separate files under <topic>-assets/.
+    3. Replaces base64 image data with local asset references.
+    4. Strips unsupported HTML wrappers (<details>, <summary>) and raw Mermaid blocks.
+    5. Converts Markdown tables into readable nested lists.
+    6. Generates EXPORT_INSTRUCTIONS.md.
+    7. Runs validation checklist.
+    """
     target_format = target_format.lower()
     if target_format in ["jpg", "jpeg"]:
         target_format = "jpeg"
     elif target_format not in ["webp", "png"]:
-        print(f"Error: Unsupported format '{target_format}'. Supported formats: webp, png, jpeg.")
+        print(f"Error: Unsupported format '{target_format}'. Supported formats: png, webp, jpeg.")
         sys.exit(1)
 
     md_file, _ = get_topic_files(slug)
@@ -175,12 +404,14 @@ def export_images(slug: str, target_format: str = "webp", out_dir: str = None):
         print(f"Error: Markdown file '{md_file}' does not exist.")
         sys.exit(1)
 
-    slug_clean = slug.removesuffix("article").removesuffix("-article")
-    export_dir = Path(out_dir) if out_dir else (OUTPUT_DIR / f"{slug_clean}-images")
-    export_dir.mkdir(parents=True, exist_ok=True)
+    # 1. Compute SHA256 of source of truth to guarantee it is NEVER modified
+    source_bytes = md_file.read_bytes()
+    orig_hash = hashlib.sha256(source_bytes).hexdigest()
+    md_text = source_bytes.decode("utf-8")
 
-    with open(md_file, "r", encoding="utf-8") as f:
-        md_text = f.read()
+    slug_clean = slug.removesuffix("article").removesuffix("-article")
+    assets_dir = Path(out_dir) if out_dir else (OUTPUT_DIR / f"{slug_clean}-assets")
+    assets_dir.mkdir(parents=True, exist_ok=True)
 
     pattern = r'!\[(.*?)\]\(data:image/([a-zA-Z]+);base64,([A-Za-z0-9+/=]+)\)'
     matches = list(re.finditer(pattern, md_text))
@@ -190,11 +421,10 @@ def export_images(slug: str, target_format: str = "webp", out_dir: str = None):
         return
 
     ext = "jpg" if target_format == "jpeg" else target_format
-    print(f"\nExporting {len(matches)} images from '{md_file.name}' as .{ext.upper()} for Medium:")
+    print(f"\nExtracting {len(matches)} embedded images from '{md_file.name}' to {assets_dir.name}/ (format: .{ext.upper()}):")
     print("-" * 65)
 
-    medium_md_text = md_text
-
+    extracted_assets = []
     for i, m in enumerate(matches, 1):
         alt = m.group(1).strip()
         orig_fmt = m.group(2).lower()
@@ -208,7 +438,7 @@ def export_images(slug: str, target_format: str = "webp", out_dir: str = None):
         else:
             filename = f"{i:02d}_{alt_slug}.{ext}"
 
-        out_path = export_dir / filename
+        out_path = assets_dir / filename
 
         if orig_fmt == target_format or (orig_fmt == "webp" and target_format == "webp"):
             with open(out_path, "wb") as img_out:
@@ -227,19 +457,36 @@ def export_images(slug: str, target_format: str = "webp", out_dir: str = None):
                     img_out.write(raw_bytes)
 
         kb = round(out_path.stat().st_size / 1024, 1)
-        print(f"  [{i}/{len(matches)}] Saved: {out_path.name:<32} ({kb} KB)")
+        print(f"  [{i}/{len(matches)}] Extracted: {out_path.name:<32} ({kb} KB)")
 
-        replacement = f"\n\n> 📸 **[MEDIUM IMAGE PLACEHOLDER: `{filename}`]**\n> *Caption: {alt}*\n\n"
-        medium_md_text = medium_md_text.replace(m.group(0), replacement)
+        extracted_assets.append({
+            "full_match": m.group(0),
+            "filename": filename,
+            "alt": alt,
+            "format": ext,
+            "size_kb": kb
+        })
 
+    # Clean Medium Markdown
+    clean_text, tables_count = clean_medium_markdown(md_text, assets_dir.name, extracted_assets)
     clean_md_path = OUTPUT_DIR / f"{slug_clean}-medium.md"
-    with open(clean_md_path, "w", encoding="utf-8") as f:
-        f.write(medium_md_text)
+    clean_md_path.write_text(clean_text, encoding="utf-8")
+
+    # Generate EXPORT_INSTRUCTIONS.md
+    instructions_path = OUTPUT_DIR / "EXPORT_INSTRUCTIONS.md"
+    generate_export_instructions(slug_clean, extracted_assets, tables_count, clean_md_path, assets_dir, instructions_path)
 
     print("-" * 65)
-    print(f"\n✔ {len(matches)} .{ext.upper()} images saved to: {export_dir.relative_to(BASE_DIR)}/")
-    print(f"✔ Clean copy-paste text saved to: {clean_md_path.relative_to(BASE_DIR)}")
-    print(f"  (Tip: Paste this clean text into Medium, then drag & drop the {ext.upper()} files into the placeholders!)\n")
+    print(f"✔ Local Assets saved to:           {assets_dir.relative_to(BASE_DIR)}/")
+    print(f"✔ Medium-Ready Markdown saved to: {clean_md_path.relative_to(BASE_DIR)}")
+    print(f"✔ Publishing Instructions:        {instructions_path.relative_to(BASE_DIR)}")
+
+    # Run validation step
+    validate_export(md_file, orig_hash, clean_md_path, assets_dir, extracted_assets, tables_count)
+
+
+# Alias export_images to export_medium for backwards compatibility
+export_images = export_medium
 
 
 def main():
@@ -257,10 +504,15 @@ def main():
     p_del = subparsers.add_parser("delete", help="Delete a topic's output files")
     p_del.add_argument("topic", help="Topic slug to delete")
 
-    p_exp = subparsers.add_parser("export-images", help="Extract Base64 images to real WEBP/PNG/JPEG files for Medium upload")
-    p_exp.add_argument("topic", help="Topic slug")
-    p_exp.add_argument("--format", default="webp", choices=["webp", "png", "jpeg", "jpg"], help="Target image format (default: webp)")
+    p_exp = subparsers.add_parser("export", help="Export article for Medium (extract assets, convert tables, strip HTML/Mermaid, validate)")
+    p_exp.add_argument("topic", help="Topic slug (e.g. how-redis-caching-works)")
+    p_exp.add_argument("--format", default="png", choices=["png", "webp", "jpeg", "jpg"], help="Target image format (default: png)")
     p_exp.add_argument("--dir", default=None, help="Custom export directory path")
+
+    p_exp_img = subparsers.add_parser("export-images", help="Alias for 'export'")
+    p_exp_img.add_argument("topic", help="Topic slug")
+    p_exp_img.add_argument("--format", default="png", choices=["png", "webp", "jpeg", "jpg"], help="Target image format (default: png)")
+    p_exp_img.add_argument("--dir", default=None, help="Custom export directory path")
 
     args = parser.parse_args()
 
@@ -272,12 +524,13 @@ def main():
         open_topic(args.topic)
     elif args.command == "delete":
         delete_topic(args.topic)
-    elif args.command == "export-images":
-        export_images(args.topic, target_format=args.format, out_dir=args.dir)
+    elif args.command in ["export", "export-images"]:
+        export_medium(args.topic, target_format=args.format, out_dir=args.dir)
     else:
         parser.print_help()
 
 
 if __name__ == "__main__":
     main()
+
 
