@@ -1,147 +1,78 @@
-# article-pipeline
+# Antigravity Medium Publication Pipeline
 
-A reliable, local-first TypeScript CLI that turns a topic request into a
-researched, illustrated, quality-reviewed technical article package — ready for
-**manual publication on Medium**. It does not publish; it reduces repetitive
-writing work while making source checks, code execution, diagrams, and review
-status auditable.
+A clean, minimalist pipeline for producing high-depth, visually rich, verified Medium engineering articles.
 
-## Prerequisites
+---
 
-- Node.js 22+ (developed and tested on Node 24)
-- pnpm 10+
-- Docker Engine (optional, only needed for code verification; without it code
-  stays `unexecuted` and code checks report `error` with the reason)
-- `@mermaid-js/mermaid-cli` (`mmdc`) on PATH (optional, only for diagram
-  rendering; without it diagrams stay `conceptual` with the reason recorded)
-- `ANTHROPIC_API_KEY` in the environment (only for LLM stages; verifiers and
-  manual research work without it)
+## ⚡ The Single-Prompt Workflow
 
-## Setup
+All you need to provide is the **TOPIC NAME**. Antigravity autonomously handles the entire lifecycle:
 
-```sh
-pnpm install
-cp .env.example .env   # fill in locally; .env is gitignored
-pnpm build
-pnpm test
+```text
+User: "Topic: PostgreSQL Indexing Under the Hood (B-Trees vs LSM-Trees)"
 ```
 
-## Commands
+Antigravity will automatically:
+1. **Research** official primary documentation and technical specifications.
+2. **Draft** the complete, in-depth technical publication in `PUBLISH.md`.
+3. **Generate** a 16:9 minimalist editorial cover image (`cover.webp`).
+4. **Render** non-breaking, high-DPI diagrams directly into WebP (`assets/diagram-*.webp`).
+5. **Code & Verify** practical backend implementations with live benchmark logs (`code/`).
+6. **Evaluate** the QA checklist (`qa.md`).
+7. **Clean up** all intermediate and temporary files so only the tidy publication folder remains.
 
-```sh
-pnpm pipeline init <slug> --request <path>   # validate slug/request, create manifest
-pnpm pipeline run <slug> [--from S] [--to S] [--auto] [--force]
-pnpm pipeline status <slug>
-pnpm pipeline verify <slug> [--only sources|code|diagrams|consistency]
-pnpm pipeline export <slug> [--force]
+---
+
+## 📁 Single-Folder Topic Architecture
+
+Every topic is isolated inside its own folder under `articles/<topic-slug>/`:
+
+```text
+articles/<topic-slug>/
+├── PUBLISH.md         # Single structured publication file (Metadata + CDN WebP + Article)
+├── cover.webp         # 16:9 generated editorial hero image
+├── assets/            # Non-breaking, colorful WebP diagrams
+│   ├── diagram-1-*.webp
+│   └── diagram-2-*.webp
+├── code/              # Executed and benchmarked production code
+│   └── demo.py
+└── qa.md              # Verified quality assurance report (PASS)
 ```
 
-- `init` refuses to overwrite an existing run.
-- `run` executes stages in dependency order (`research → outline → draft →
-  visuals → metadata → qa`) and pauses at human approval gates unless `--auto`.
-  `--auto` never bypasses validation, safety checks, or verification.
-- Re-running a stage with `--force` writes a **new version** under
-  `runs/<slug>/<stage>/v<N>/`; existing artifacts are never overwritten.
-- `status` reports stage states, versions, approvals, verifier state, blockers.
-- `verify` runs deterministic verifiers only — it never asks the LLM to
-  rewrite content.
-- `export` is blocked by failed mandatory checks; `--force` produces a package
-  visibly marked `UNVERIFIED` (see `UNVERIFIED.txt` in the package) and lists
-  remaining blockers. A forced export never turns a failed check into a pass.
+---
 
-## Pipeline configuration
+## 🛠️ Topic Management CLI (`pipeline.py`)
 
-`pipeline.config.yml` is schema-validated on load. Configure per-stage model
-identifiers (no model names are hardcoded in stage logic), retry limits,
-Docker sandbox limits, research fetch limits and domain allowlist, image
-provider mode (`brief-only` by default), Medium platform limits, phrase
-warning rules, and export policy.
+Manage your topics with simple, zero-friction commands:
 
-**Medium platform limits carry verification metadata** (`lastVerifiedAt`,
-`sourceUrl`, `unverified`). The shipped values are unverified placeholders —
-confirm against help.medium.com and update, or they will surface as warnings.
+```bash
+# 1. List all topics and their publication status
+python3 pipeline.py list
 
-Secrets come from the environment only (`.env` is gitignored, `.env.example`
-contains placeholder names). A redaction layer strips secret-looking values
-from run logs and artifacts.
+# 2. Check and verify assets for a topic
+python3 pipeline.py check how-redis-caching-works
 
-## Safety boundaries
+# 3. 1-Click: Sync CDN, create public Gist, and launch Medium Importer
+python3 pipeline.py gist how-redis-caching-works
 
-- **No fabrication:** claim provenance is explicit (`doc-fact` / `derived` /
-  `opinion` with source IDs). Claim markers like `<!-- claim:c12 -->` link
-  article sentences to research claims.
-- **"Verified" means a verifier produced a persisted artifact.** Semantic
-  source support is `model_assessed_support` — labeled LLM judgment, never
-  deterministic proof. Fabricated evidence quotes are rejected.
-- **SSRF defenses** in the source fetcher: HTTP/HTTPS only, private /
-  link-local / reserved IP blocking (including redirect re-checks and DNS
-  resolution), redirect/size/timeout/content-type limits, configurable domain
-  allowlist. Fetched pages are treated as data, never instructions.
-- **Sandboxed code execution:** article code with a run spec
-  (```ts run=redis-basic```) executes in a throwaway Docker container — no
-  privileged mode, no docker socket, read-only rootfs, dropped capabilities,
-  `no-new-privileges`, cpu/mem/pids/time limits, no network by default, exact
-  snippet bytes mounted read-only and hash-compared. Model text never reaches
-  a host shell. Code without a run spec is labeled `unexecuted`, never run.
-  Successful execution proves only the assertions and environment tested;
-  untested behaviors are recorded.
-- **Diagrams:** a successful Mermaid render proves renderability, not factual
-  truth. Node labels are cross-checked against article terminology (warnings).
-- **Editorial review is separated:** QA output keeps deterministic verifier
-  results, LLM editorial review (explicitly labeled), and human review items
-  apart; final status is derived from explicit rules.
-
-## Run layout
-
-```
-runs/<slug>/
-├── request.md          # copied at init
-├── manifest.json       # stage versions/statuses/inputs/outputs/approvals (hashed)
-├── log.jsonl           # structured events; secrets redacted
-├── research/v1/…       # stage outputs, versioned, never overwritten
-├── outline/v1/ draft/v1/ visuals/v1/ metadata/v1/ qa/v1/
-├── verification/       # sources.json, code.json, diagrams.json, consistency.json
-└── package/            # export output (see below)
+# 4. Cleanly delete any old topic folder
+python3 pipeline.py delete how-redis-caching-works
 ```
 
-Changing upstream inputs marks downstream stages **stale** (hash comparison in
-the manifest).
+---
 
-## Export package
+## 🚀 Publishing to Medium
 
-```
-runs/<slug>/package/
-├── article.md                # clean, claim markers stripped
-├── article.html              # best-effort local conversion for review
-├── source/article-with-markers.md
-├── code/ diagrams/ logs/     # exact tested code, rendered diagrams, logs
-├── metadata.json
-├── references.md             # source fetch status + model-assessed support
-├── verification-summary.json
-├── QA.md  REMAINING_ACTIONS.md  review-package.md
-└── UNVERIFIED.txt            # present only on --force exports with failed checks
+```bash
+# Run the 1-click gist publisher:
+python3 pipeline.py gist how-redis-caching-works
 ```
 
-## Testing
-
-```sh
-pnpm test        # 71 unit tests: config, manifest/versioning, SSRF fetch,
-                 # source/code/diagram/consistency verifiers, draft parsing,
-                 # export blocking/force, CLI smoke, secret redaction
+```text
+This automatically:
+1. Pushes the WebP assets to your GitHub repository.
+2. Generates a public GitHub Gist referencing the raw CDN URLs.
+3. Copies the Gist URL to your clipboard.
+4. Opens https://medium.com/p/import in your browser.
+Simply press Cmd+V and click "Import story".
 ```
-
-Negative paths covered: invalid LLM output after retries, dead links, blocked
-redirects into private IPs, contradicting pages, missing claim/source IDs,
-failing/flaky/timing-out code, Mermaid syntax errors, placeholders, export
-blocking, forced export marking, no-overwrite, stale marking, secret
-redaction. External LLM calls are mocked; real Docker execution is exercised
-only where Docker is available.
-
-## Known limitations
-
-- Docker and mermaid-cli are absent in the development environment used to
-  build this repo: code verification there reports `error (sandbox
-  unavailable)` and diagrams stay `conceptual`; both degrade with explicit
-  reasons and block export (as designed).
-- Medium publishing is intentionally out of scope: export files only.
-- LLM stages require `ANTHROPIC_API_KEY`; the pipeline fails clearly without it.
