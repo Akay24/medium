@@ -14,18 +14,16 @@
 - [ ] No fabricated benchmarks or test results.
 
 ## Editorial
-- [ ] Title matches the content.
-- [ ] Article solves a clear reader problem.
-- [ ] Sections progress logically.
-- [ ] Examples are concrete and useful.
-- [ ] No generic filler or repetitive conclusions.
-- [ ] Interview connections are useful, not exaggerated.
+- [ ] Article is concise, punchy, and helpful (~1,200 to 1,800 words).
+- [ ] No academic bloat, generic intros, or repetitive conclusions.
+- [ ] Code examples are concrete, verified, and practical.
+- [ ] Interview connections and trade-offs provide immediate actionable value.
 
 ## Visuals
-- [ ] Cover brief represents the actual topic.
-- [ ] Diagrams match the text.
-- [ ] Labels and terminology are consistent.
-- [ ] Generated vs. merely specified visuals are distinguished.
+- [ ] Exactly 3 visual assets present (1 cover hero + 2 core technical diagrams).
+- [ ] Zero raw Mermaid code blocks or collapsible `<details>` blocks.
+- [ ] Diagrams visually convey the most important request lifecycle and failure mode/mechanism.
+- [ ] Visuals are high-resolution, rich aesthetic, and ready for Medium drag-and-drop.
 
 ## Publication
 - [ ] Subtitle and excerpt are accurate.

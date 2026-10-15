@@ -112,6 +112,16 @@ def check_topic(slug: str):
         else:
             print(f"  [\033[92m✔ PASS\033[0m] Embedded WebP Images: {len(images)} (100% Standalone Base64)")
 
+        if len(images) == 3:
+            print("  [\033[92m✔ PASS\033[0m] Strict 3-Image Standard (1 Cover + 2 Core Diagrams)")
+        else:
+            print(f"  [\033[93m⚠ INFO\033[0m] Visual Count: {len(images)} images (Standard is 3: 1 cover + 2 diagrams)")
+
+        if "```mermaid" in md_text:
+            print("  [\033[93m⚠ WARN\033[0m] Raw Mermaid code blocks detected (recommend dropping Mermaid for clean visual diagrams)")
+        else:
+            print("  [\033[92m✔ PASS\033[0m] Zero Raw Mermaid Blocks (Clean visual presentation)")
+
     if html_file.exists():
         with open(html_file, "r") as f:
             html_text = f.read()

@@ -5,8 +5,8 @@ Series: [DSA / System Design / Backend Engineering / Programming Languages / Lin
 Audience: [Beginner / Intermediate developers / Experienced engineers]
 Format: [Concept explainer / Technical deep dive / Hands-on tutorial / Case study / Learning retrospective]
 Technical depth: [Concise / Detailed / Advanced]
-Visuals: [Cover only / Cover + inline diagrams / Cover + diagrams + code illustrations]
+Visuals: [Standard 3-Image Package: 1 Editorial Cover + 2 Core Technical Diagrams (No Mermaid)]
 Purpose: [Learn and prepare for interviews / Build public engineering credibility / Both]
 Additional instructions: [OPTIONAL]
 
-Execute all stages from the master instructions. Complete the full package, including the full article, image brief, inline diagram definitions, metadata, references, navigation placeholders, and QA report. Do not stop at the outline. Do not invent facts or claim code was executed unless it was actually executed.
+Execute all stages from the master instructions. Produce a concise, punchy, high-signal publication package (~1,200 to 1,800 words). Strictly limit visuals to exactly 3 images (1 cover + 2 essential diagrams). Do not include any raw Mermaid syntax or Mermaid code blocks. Ensure all claims and code examples are accurate.

@@ -76,44 +76,39 @@ Output: core thesis, prerequisites, learning objectives, claims requiring verifi
 Create three title candidates and recommend one. For each section, specify heading, purpose, questions answered, concepts, examples/code/diagrams, sources, and interview relevance. Prefer a logical progression: problem -> mental model -> mechanics -> implementation -> trade-offs -> failure cases -> practical application -> interview synthesis. Adapt when needed.
 
 ### Stage 3: Full article
-Write a complete Medium-ready article, not just an outline. Start with a concrete problem, build a mental model, use descriptive headings, introduce terminology before relying on it, explain failure cases and trade-offs, and connect the subject to real engineering decisions and interviews. End with a concise synthesis and useful next steps.
+Write a complete, concise, and punchy Medium-ready article (~1,200 to 1,800 words). Focus strictly on high signal-to-noise ratio:
+1. Start directly with the core engineering problem (skip generic throat-clearing intros).
+2. Build an intuitive mental model from first principles.
+3. Detail the exact mechanical inner workings and concrete code.
+4. Highlight real-world trade-offs, edge cases, and failure modes.
+5. Conclude with high-yield system design interview takeaways.
 
-Avoid generic phrases, repetitive introductions/conclusions, excessive rhetorical questions, unnecessary section summaries, emoji as visual design, unsupported claims about interview expectations, fabricated first-person experience, and filler.
+Keep it fast-paced, highly readable, and deeply educational. Eliminate academic bloat, repetitive summaries, and generic filler prose.
 
-For code: state language, dependencies, assumptions, edge cases, and execution status. Include reproducible verification steps. Put references near relevant claims where practical.
+### Stage 4: Visual content (Strict 3-Image Standard)
+Produce exactly **3 visual assets** per article. Drop Mermaid syntax completely (no Mermaid code blocks, no `<details>` tags).
 
-### Stage 4: Visual content
-Provide a separate cover-image brief and separate briefs for inline diagrams.
+1. **Image 1 — Editorial Cover Hero Image** (16:9 ratio, minimalist, rich aesthetic, dark obsidian background, evocative technical metaphor).
+2. **Image 2 — Core Architecture / Request Lifecycle Diagram** (The single most important request/data flow visualized).
+3. **Image 3 — Key Mechanism / Failure Mode Diagram** (The second most essential mental model, e.g. cache stampede mutex, dual-write invalidation, or index traversal).
 
-Cover brief must specify central idea, visual metaphor/composition, hierarchy, palette, typography, negative space, landscape aspect ratio, and a self-contained image-generation prompt. Prefer restrained editorial design; avoid random icons, meaningless code, fake dashboards, excessive gradients, and illegible text. Do not rely on an image generator to render detailed technical labels.
-
-For every inline diagram provide identifier, intended location, purpose, nodes, labels, relationships, arrow direction/meaning, and renderable Mermaid where suitable. Distinguish conceptual diagrams from verified implementations.
-
-A prompt is not an image. Report an image as generated only when an image-generation tool actually generated it.
+All diagrams must be rendered directly as clean visual image graphics (WebP/PNG). Do not output raw Mermaid code or ask the reader to render text diagrams.
 
 ### Stage 5: Medium metadata
-Generate headline, two alternatives, subtitle, excerpt, relevant tags within Medium's current supported limits, series/article number if known, reading-time estimate based on actual draft, cover alt text, author note only if useful, previous/next links only if verified, roadmap link when available, related articles, and suggested section/collection.
-
-Never invent published URLs, article numbers, credentials, or existing series entries. Use explicit placeholders for unavailable links.
+Generate headline, two punchy alternatives, subtitle, excerpt, 5 targeted Medium tags, estimated reading time, cover alt text, and suggested publication target.
 
 ### Stage 6: Quality assurance
-Assess technical accuracy, evidence, version-specific qualifications, code coherence, unsupported guarantees, trade-offs, editorial usefulness, title/content alignment, diagram accuracy, metadata, and references.
-
-Use PASS, NEEDS REVIEW, or FAIL. List unverified claims, required corrections, unexecuted code, and visuals not actually generated. Do not call work fully verified just because it sounds convincing.
+Assess technical accuracy, evidence, code correctness, concise editorial structure, verification of exactly 3 visual assets, and zero Mermaid syntax.
 
 ## Required output structure
 00. Article configuration
 01. Research brief
 02. Editorial outline
-03. Final article
-04. Cover image brief
-05. Inline diagram specifications
-06. Code examples and verification notes
-07. References
-08. Medium metadata
-09. Series navigation
-10. Quality assurance report
-11. Remaining manual actions
+03. Final article (concise, high-signal, punchy)
+04. Visual assets (1 cover + 2 core technical diagrams; 0 Mermaid)
+05. Practical code implementation and verification notes
+06. Medium publishing metadata
+07. Quality assurance report
 
 If response length becomes a limitation, identify what remains and continue; do not silently omit sections.
 
