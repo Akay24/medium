@@ -37,19 +37,8 @@ def slugify(text: str) -> str:
 
 def get_topic_files(slug: str):
     slug_clean = slug.removesuffix("article").removesuffix("-article")
-    candidates_md = [
-        OUTPUT_DIR / f"{slug_clean}article.md",
-        OUTPUT_DIR / f"{slug_clean}-article.md",
-        OUTPUT_DIR / f"{slug}.md",
-    ]
-    candidates_html = [
-        OUTPUT_DIR / f"{slug_clean}article.html",
-        OUTPUT_DIR / f"{slug_clean}-article.html",
-        OUTPUT_DIR / f"{slug}.html",
-    ]
-
-    md_file = next((f for f in candidates_md if f.exists()), candidates_md[0])
-    html_file = next((f for f in candidates_html if f.exists()), candidates_html[0])
+    md_file = OUTPUT_DIR / f"{slug_clean}article.md"
+    html_file = OUTPUT_DIR / f"{slug_clean}article.html"
     return md_file, html_file
 
 
@@ -157,18 +146,6 @@ def delete_topic(slug: str):
             f.unlink()
             deleted += 1
             print(f"\033[92m✔ Deleted:\033[0m {f.relative_to(BASE_DIR)}")
-
-    # Also clean hyphenated aliases if present
-    slug_clean = slug.removesuffix("article").removesuffix("-article")
-    for alias in [
-        OUTPUT_DIR / f"{slug_clean}-article.md",
-        OUTPUT_DIR / f"{slug_clean}-article.html",
-        OUTPUT_DIR / f"{slug_clean}article.md",
-        OUTPUT_DIR / f"{slug_clean}article.html",
-    ]:
-        if alias.exists():
-            alias.unlink()
-            print(f"\033[92m✔ Deleted alias:\033[0m {alias.relative_to(BASE_DIR)}")
 
     if deleted == 0:
         print(f"No files found for topic '{slug}' in {OUTPUT_DIR}.")
