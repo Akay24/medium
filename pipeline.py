@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import base64
 import os
 import re
 import subprocess
@@ -151,6 +152,86 @@ def delete_topic(slug: str):
         print(f"No files found for topic '{slug}' in {OUTPUT_DIR}.")
 
 
+def export_images(slug: str, target_format: str = "webp", out_dir: str = None):
+    target_format = target_format.lower()
+    if target_format in ["jpg", "jpeg"]:
+        target_format = "jpeg"
+    elif target_format not in ["webp", "png"]:
+        print(f"Error: Unsupported format '{target_format}'. Supported formats: webp, png, jpeg.")
+        sys.exit(1)
+
+    md_file, _ = get_topic_files(slug)
+    if not md_file.exists():
+        print(f"Error: Markdown file '{md_file}' does not exist.")
+        sys.exit(1)
+
+    slug_clean = slug.removesuffix("article").removesuffix("-article")
+    export_dir = Path(out_dir) if out_dir else (OUTPUT_DIR / f"{slug_clean}-images")
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(md_file, "r", encoding="utf-8") as f:
+        md_text = f.read()
+
+    pattern = r'!\[(.*?)\]\(data:image/([a-zA-Z]+);base64,([A-Za-z0-9+/=]+)\)'
+    matches = list(re.finditer(pattern, md_text))
+
+    if not matches:
+        print(f"No Base64 images found in {md_file.name}.")
+        return
+
+    ext = "jpg" if target_format == "jpeg" else target_format
+    print(f"\nExporting {len(matches)} images from '{md_file.name}' as .{ext.upper()} for Medium:")
+    print("-" * 65)
+
+    medium_md_text = md_text
+
+    for i, m in enumerate(matches, 1):
+        alt = m.group(1).strip()
+        orig_fmt = m.group(2).lower()
+        b64_str = m.group(3)
+        raw_bytes = base64.b64decode(b64_str)
+
+        alt_slug = re.sub(r"[^\w\s-]", "", alt.lower())
+        alt_slug = re.sub(r"[-\s]+", "_", alt_slug)[:28].strip("_")
+        if not alt_slug or alt_slug.startswith("image") or alt_slug.startswith("cover"):
+            filename = f"{i:02d}_cover.{ext}" if i == 1 else f"{i:02d}_diagram.{ext}"
+        else:
+            filename = f"{i:02d}_{alt_slug}.{ext}"
+
+        out_path = export_dir / filename
+
+        if orig_fmt == target_format or (orig_fmt == "webp" and target_format == "webp"):
+            with open(out_path, "wb") as img_out:
+                img_out.write(raw_bytes)
+        else:
+            try:
+                from PIL import Image
+                import io
+                img = Image.open(io.BytesIO(raw_bytes))
+                if target_format == "jpeg" and img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                img.save(out_path, format=target_format.upper())
+            except Exception as e:
+                print(f"  Warning: Pillow conversion failed ({e}), saving raw bytes.")
+                with open(out_path, "wb") as img_out:
+                    img_out.write(raw_bytes)
+
+        kb = round(out_path.stat().st_size / 1024, 1)
+        print(f"  [{i}/{len(matches)}] Saved: {out_path.name:<32} ({kb} KB)")
+
+        replacement = f"\n\n> 📸 **[MEDIUM IMAGE PLACEHOLDER: `{filename}`]**\n> *Caption: {alt}*\n\n"
+        medium_md_text = medium_md_text.replace(m.group(0), replacement)
+
+    clean_md_path = OUTPUT_DIR / f"{slug_clean}-medium.md"
+    with open(clean_md_path, "w", encoding="utf-8") as f:
+        f.write(medium_md_text)
+
+    print("-" * 65)
+    print(f"\n✔ {len(matches)} .{ext.upper()} images saved to: {export_dir.relative_to(BASE_DIR)}/")
+    print(f"✔ Clean copy-paste text saved to: {clean_md_path.relative_to(BASE_DIR)}")
+    print(f"  (Tip: Paste this clean text into Medium, then drag & drop the {ext.upper()} files into the placeholders!)\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Antigravity Standalone Topic Pipeline Manager")
     subparsers = parser.add_subparsers(dest="command")
@@ -166,6 +247,11 @@ def main():
     p_del = subparsers.add_parser("delete", help="Delete a topic's output files")
     p_del.add_argument("topic", help="Topic slug to delete")
 
+    p_exp = subparsers.add_parser("export-images", help="Extract Base64 images to real WEBP/PNG/JPEG files for Medium upload")
+    p_exp.add_argument("topic", help="Topic slug")
+    p_exp.add_argument("--format", default="webp", choices=["webp", "png", "jpeg", "jpg"], help="Target image format (default: webp)")
+    p_exp.add_argument("--dir", default=None, help="Custom export directory path")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -176,9 +262,12 @@ def main():
         open_topic(args.topic)
     elif args.command == "delete":
         delete_topic(args.topic)
+    elif args.command == "export-images":
+        export_images(args.topic, target_format=args.format, out_dir=args.dir)
     else:
         parser.print_help()
 
 
 if __name__ == "__main__":
     main()
+
